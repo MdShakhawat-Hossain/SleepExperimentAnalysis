@@ -1,0 +1,130 @@
+close all;
+Data_Start = FiberData.params.DataFs*60*55;
+Data_End = FiberData.params.DataFs*60*60;
+
+%% Filter Parameters
+[z,p,k]=butter(3,FiberData.params.low_Freq/(0.5*FiberData.params.DataFs),'low'); %Low pass for optical data to physiologically relevant range
+[sos_Low,g_Low]=zp2sos(z,p,k);
+
+
+NEsignal = FiberData.NE.rawData.F465(Data_Start:Data_End);
+control405 = FiberData.NE.rawData.F405(Data_Start:Data_End);
+
+
+% NEsignal = FiberData.RH.rawData.F465(Data_Start:Data_End);
+% control405 = FiberData.RH.rawData.F405(Data_Start:Data_End);
+
+NEsignal = filtfilt(sos_Low,g_Low,NEsignal);
+control405 = filtfilt(sos_Low,g_Low,control405);
+
+Time_T = (1:length(NEsignal))./FiberData.params.DataFs;
+
+
+% 405 normalization
+reg = polyfit(control405, NEsignal, 1); 
+a = reg(1);
+b = reg(2);
+controlFit = a.*control405 + b;
+normDat = (NEsignal - controlFit)./controlFit;
+deltaNE = normDat * 100;
+
+figure;
+ax(1) = subplot(511);
+plot(Time_T,NEsignal);
+xlabel('Time(s)'); ylabel('Raw Flouresence'); title('Raw 465 signal'); 
+xlim([0 Time_T(end)]);
+
+ax(2) =subplot(512);
+plot(Time_T,control405);
+xlabel('Time(s)'); ylabel('Raw Flouresence'); title('Raw 405 signal');
+xlim([0 Time_T(end)]);
+
+ax(3) =subplot(513);
+plot(Time_T,deltaNE);
+xlabel('Time(s)'); ylabel('\DeltaF/F (%)'); title('Normalized \DeltaF/F using Celias code found on github');
+xlim([0 Time_T(end)]);
+
+% ax(4) = subplot(514);
+% plot(Time_T,NEsignal./control405);
+% xlabel('Time(s)'); ylabel('\DeltaF/F'); title('\DeltaF/F if I just divide the 465 with 405 signal'); 
+% xlim([0 Time_T(end)]);
+
+
+ax(4) = subplot(514);
+plot(Time_T,100.*((NEsignal./control405)-mean(NEsignal./control405))./mean(NEsignal./control405));
+xlabel('Time(s)'); ylabel('\DeltaF/F (%)'); title('\DeltaF/F if I just divide the 465 with 405 signal'); 
+xlim([0 Time_T(end)]);
+
+ax(5) = subplot(515);
+plot(Time_T,100.*((NEsignal)-mean(NEsignal))./mean(NEsignal));
+xlabel('Time(s)'); ylabel('\DeltaF/F (%)'); title('\DeltaF/F Raw 465 Signal'); 
+xlim([0 Time_T(end)]);
+
+figure;plot(100.*((NEsignal./control405)-mean(NEsignal./control405))./mean(NEsignal./control405),100.*((NEsignal)-mean(NEsignal))./mean(NEsignal))
+axis square
+
+%% let's consider a noisy 405 signal. the noise could be motion artifact.
+% I am making a noise 405 by multiplying the 405 with contralateral 465. I
+% will use the same signal to multiply bot 405 and 465 on ispilateral
+% hemisphere. 
+%{
+Contra_465 = FiberData.Ach.rawData.F465(Data_Start:Data_End);
+NE_noisy = (Contra_465.*NEsignal)./mean(Contra_465);
+control405_noisy = (Contra_465.*control405)./mean(Contra_465);
+
+figure;
+ax(1) = subplot(311);
+plot(Time_T,NE_noisy);
+xlabel('Time(s)'); ylabel('Raw Flouresence'); title('Raw NE signal'); 
+xlim([0 Time_T(end)]);
+
+ax(2) =subplot(312);
+plot(Time_T,control405_noisy);
+xlabel('Time(s)'); ylabel('Raw Flouresence'); title('Noisy 405 signal');
+xlim([0 Time_T(end)]);
+
+ax(3) =subplot(313);
+plot(Time_T,control405);
+xlabel('Time(s)'); ylabel('Raw Flouresence'); title('Control 405 signal');
+xlim([0 Time_T(end)]);
+
+linkaxes(ax,'x');
+% 405 normalization
+reg = polyfit(control405_noisy, NE_noisy, 1); 
+a = reg(1);
+b = reg(2);
+controlFit_noisy = a.*control405_noisy + b;
+normDat_noisy = (NE_noisy - controlFit_noisy)./controlFit_noisy;
+deltaNE_noisy = normDat_noisy * 100;
+
+figure;
+ax(1) = subplot(311);
+plot(Time_T,NE_noisy);
+xlabel('Time(s)'); ylabel('Raw Flouresence'); title('noisy NE signal'); 
+xlim([0 Time_T(end)]);
+
+ax(2) =subplot(312);
+plot(Time_T,control405_noisy);
+xlabel('Time(s)'); ylabel('Raw Flouresence'); title('noisy 405 signal');
+xlim([0 Time_T(end)]);
+
+ax(3) =subplot(313);
+plot(Time_T,deltaNE_noisy);
+xlabel('Time(s)'); ylabel('\DeltaF/F'); title('Normalized \DeltaF/F using Celias code found on github');
+xlim([0 Time_T(end)]);
+
+ax(4) = subplot(514);
+plot(Time_T,NEsignal./control405);
+xlabel('Time(s)'); ylabel('\DeltaF/F'); title('\DeltaF/F if I just devide the 465 with 405 signal'); 
+xlim([0 Time_T(end)]);
+
+linkaxes(ax,'x');
+
+% figure;
+% plot(Time_T,deltaNE_noisy);
+% hold on;
+% plot(Time_T,deltaNE);
+
+
+%% what if I just devide the 465 signal by 405
+%}

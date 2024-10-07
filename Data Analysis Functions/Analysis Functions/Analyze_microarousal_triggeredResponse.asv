@@ -1,0 +1,18 @@
+function Analyze_microarousal_triggeredResponse()
+
+
+load('NEACh008_MicroArousalsData.mat');
+
+DataSize = size(MicroArousalsData.data.GFP.Z_NE,1);
+ExpectedLength = 5*30; % 5 seconds Data
+for MA = 1:1:DataSize
+    MAData_NE(:,MA) = MicroArousalsData.data.GFP.Z_NE{MA,1}(1:ExpectedLength);
+    MAData_ACh(:,MA) = MicroArousalsData.data.GFP.Z_Ach{MA,1}(1:ExpectedLength);
+    MAData_CBV(:,MA) = MicroArousalsData.data.Rhodamine.Z_Ach{MA,1}(1:ExpectedLength);
+end
+
+for MA = 1:1:DataSize
+    plot()
+    MAData_ACh(:,MA) = MicroArousalsData.data.GFP.Z_Ach{MA,1}(1:ExpectedLength);
+    MAData_CBV(:,MA) = MicroArousalsData.data.Rhodamine.Z_Ach{MA,1}(1:ExpectedLength);
+end

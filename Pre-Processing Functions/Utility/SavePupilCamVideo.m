@@ -1,0 +1,149 @@
+%________________________________________________________________________________________________________________________
+% Original version by Kevin L. Turner
+% The Pennsylvania State University, Dept. of Biomedical Engineering
+% https://github.com/KL-Turner
+% Written by Md Shakhawat Hossain
+%________________________________________________________________________________________________________________________
+%
+%   Purpose: play or save the .bin video files. saves as a avi file.
+%________________________________________________________________________________________________________________________
+%
+%   Inputs: 
+%
+%   Outputs:        
+%
+%   Last Revised: March 13, 2024   
+%________________________________________________________________________________________________________________________
+function SavePupilCamVideo()
+
+clc
+close all
+
+%% User inputs for file information
+pupilCamFileID = uigetfile('*_PupilCam.bin','MultiSelect','on'); % one file at a time
+animalID = input('Input the animal ID: ', 's'); disp(' '); % required to search for the files
+    
+for pn = 1:1:length(pupilCamFileID)
+    pupilCamFileIDn = char(pupilCamFileID{pn});
+
+    rawDataFileID = [animalID '_' pupilCamFileIDn(1:end - 13) '_RawData.mat'];% raw data file
+    
+    disp(['Loading relevant file information from ' rawDataFileID '...']); disp(' ')
+    
+    try
+        load(rawDataFileID)
+    catch
+        disp([rawDataFileID ' does not appear to be in the current file path']); disp(' ')
+        return
+    end
+    
+    trialDuration = RawData.notes.trialDuration_long;
+    disp([pupilCamFileIDn ' is ' num2str(trialDuration) ' seconds long.']); disp(' ')
+    %% get some user input to select time and task choice
+    if pn == 1 % only ask for the time information for the first file
+        % user decides between playing the video or saving the file
+        TaskChoice = input('Do you want to play the video or save it as an avi file: (p or s): ', 's'); disp(' ')  
+        
+        % user decides the duration of the videos to play or save
+        startTime = input('Input the desired start time (sec): '); disp(' ')
+        endTime = input('Input the desired end time (sec): '); disp(' ')
+        % check if the selected time is valid
+        if startTime >= trialDuration || startTime < 0
+            disp(['A start time of  ' num2str(startTime) ' is not a valid input']); disp(' ')
+            return
+        elseif endTime > trialDuration || endTime <= startTime || endTime <= 0
+            disp(['An end time of  ' num2str(startTime) ' is not a valid input']); disp(' ')
+            return
+        end
+    end     
+    %% gather the image frame related information
+    imageHeight = RawData.notes.pupilCamPixelHeight;                                                                                                            
+    imageWidth = RawData.notes.pupilCamPixelWidth;
+    Fs = RawData.notes.pupilCamSamplingRate;
+    
+    frameStart = floor(startTime)*Fs;
+    frameEnd = floor(endTime)*Fs;         
+    frameInds = frameStart:frameEnd;
+    
+    pixelsPerFrame = imageWidth*imageHeight;
+    skippedPixels = pixelsPerFrame;   % Multiply by two because there are 16 bits (2 bytes) per pixel
+    fid = fopen(pupilCamFileIDn);
+    fseek(fid,0,'eof');
+    % fileSize = ftell(fid);
+    fseek(fid,0,'bof');
+    nFramesToRead = length(frameInds);
+    %% perform the operation
+    if TaskChoice == "p"
+        %% play the pupil cam video
+        imageStack = zeros(imageHeight,imageWidth,nFramesToRead);
+        for a = 1:nFramesToRead
+            disp(['Creating image stack: (' num2str(a) '/' num2str(nFramesToRead) ')']); disp(' ')
+            fseek(fid,frameInds(a)*skippedPixels,'bof');
+            z = fread(fid,pixelsPerFrame,'*uint8','b');
+            img = reshape(z(1:pixelsPerFrame),imageWidth,imageHeight);
+            imageStack(:,:,a) = flip(imrotate(img,-90),2);
+        end
+        fclose('all');
+        
+        handle = implay(imageStack, Fs);
+        handle.Visual.ColorMap.UserRange = 1; 
+        handle.Visual.ColorMap.UserRangeMin = min(img(:)); 
+        handle.Visual.ColorMap.UserRangeMax = max(img(:));
+    elseif TaskChoice == "s"
+         %% name the new video file
+        videofileID = [animalID '_' pupilCamFileIDn(1:end - 4) '_Video.avi']; % the new video file
+        
+        if exist(videofileID,'file') == 2 % if a video file already exist
+            dlchoice = input('Video file exist. Do you want to delete and redo it? (y/n): ',"s"); disp(' '); % decide if new file will be created.
+            if dlchoice == "y"
+                delete(videofileID); % delete the old file and create a new file
+                %% create the video writer
+                 writerObj = VideoWriter(videofileID);
+                 writerObj.FrameRate = 30;
+                 % open the video writer
+                 open(writerObj);
+                 % write the frames to the video     
+                    for a = 1:nFramesToRead
+                        fseek(fid,frameInds(a)*skippedPixels,'bof');
+                        z = fread(fid,pixelsPerFrame,'*uint8','b');
+                        img = reshape(z(1:pixelsPerFrame),imageWidth,imageHeight);
+                        % plot the pupil
+                        imshow(flip(imrotate(img,-90),2));
+                        % convert the image to a frame
+                        frame = getframe;
+                        writeVideo(writerObj, frame);
+                    end
+                 % close the writer object
+                fclose('all');
+                close(writerObj);
+            else
+                disp('File exists.'); disp(' ')
+            end
+        else % if the file doesn't exist. create new video
+             %% create the video writer
+             writerObj = VideoWriter(videofileID);
+             writerObj.FrameRate = 30;
+             % open the video writer
+             open(writerObj);
+             % write the frames to the video     
+                for a = 1:nFramesToRead
+                    fseek(fid,frameInds(a)*skippedPixels,'bof');
+                    z = fread(fid,pixelsPerFrame,'*uint8','b');
+                    img = reshape(z(1:pixelsPerFrame),imageWidth,imageHeight);
+                    % plot the pupil
+                    imshow(flip(imrotate(img,-90),2));
+                    % convert the image to a frame
+                    frame = getframe;
+                    writeVideo(writerObj, frame);
+                end
+             % close the writer object
+            fclose('all');
+            close(writerObj);
+        end
+    else
+        disp('A selection between playing the video or saving it is required'); disp(' ');
+    
+    end
+    close all;
+end
+end
